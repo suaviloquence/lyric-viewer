@@ -100,7 +100,7 @@ fn run_sync(config: Config) -> std::io::Result<()> {
 		println!("{}", line);
 		stdin().read_line(&mut buf)?;
 		data.push(Lyric {lyric: line.to_owned(), min_secs: SystemTime::now().duration_since(start).unwrap().as_secs_f64()});
-		dbg!(lyric_parser::seconds_to_timestr(&data.last().unwrap().min_secs));
+		lyric_parser::seconds_to_timestr(&data.last().unwrap().min_secs);
 	}
 	
 	let lyrics = lyric_parser::load_from_data(data);
