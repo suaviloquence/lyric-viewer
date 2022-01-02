@@ -6,7 +6,7 @@ pub struct MPDClient {
 }
 
 impl MPDClient {
-	fn run_command(&mut self, command: &str) -> std::io::Result<()> {
+	pub fn run_command(&mut self, command: &str) -> std::io::Result<()> {
 		write!(&mut self.stream, "{}\n", command)?;
 		self.stream.flush()
 	}

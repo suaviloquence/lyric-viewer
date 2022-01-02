@@ -1,4 +1,4 @@
-use std::{fs, num::ParseFloatError};
+use std::{fmt::Write, fs, num::ParseFloatError};
 
 
 #[derive(Debug)]
@@ -23,6 +23,15 @@ impl Lyrics {
 		}
 		result
 	}
+	
+	pub fn to_string(&self) -> String {
+		let mut result = String::new();
+		for lyric in &self.data {
+			writeln!(&mut result, "[{}]{}", seconds_to_timestr(&lyric.min_secs), &lyric.lyric).unwrap();
+		}
+		
+		result
+	}
 }
 
 impl IntoIterator for Lyrics {
@@ -31,6 +40,11 @@ impl IntoIterator for Lyrics {
 	fn into_iter(self) -> Self::IntoIter {
 		self.data.into_iter()
 	}
+}
+
+// doesn't work for things over 99 hours... but why would you do that?
+pub fn seconds_to_timestr(seconds: &f64) -> String {
+	format!("{:02.0}:{:02.0}:{:06.3}", (seconds / 3600.0).floor(), ((seconds % 3600.0) / 60.0).floor(), (seconds % 60.0))
 }
 
 // won't work for songs with units longer than hours... but that shouldn't matter
@@ -67,4 +81,8 @@ pub fn load(contents: String, blank_lines: bool) -> Lyrics {
 
 pub fn load_from_file(filename: &str, blank_lines: bool) -> std::io::Result<Lyrics> {
 	Ok(load(fs::read_to_string(filename)?, blank_lines))
+}
+
+pub fn load_from_data(data: Vec<Lyric>) -> Lyrics {
+	Lyrics {data}
 }

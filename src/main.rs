@@ -1,11 +1,15 @@
-use std::{thread, sync::{Arc, atomic::{AtomicBool, Ordering}}, time::Duration};
+use std::{thread, sync::{Arc, atomic::{AtomicBool, Ordering}}, time::{Duration, SystemTime}, fs::{self, File}, io::{stdin, Write}, path::PathBuf};
+
+use cli::{Config, Mode};
+
+use crate::lyric_parser::Lyric;
 
 mod mpd;
 mod lyric_parser;
 mod cli;
 
 
-fn run_instant(config: cli::Config) -> std::io::Result<()> {
+fn run_instant(config: Config) -> std::io::Result<()> {
 	let mut client = mpd::connect(&config.url)?;
 
 	let ret = client.get_command("status")?;
@@ -26,7 +30,7 @@ fn run_instant(config: cli::Config) -> std::io::Result<()> {
 	Ok(())
 }
 
-fn run_stream(config: cli::Config) -> std::io::Result<()> {
+fn run_stream(config: Config) -> std::io::Result<()> {
 	let mut client = mpd::connect(&config.url)?;
 	
 	loop {
@@ -70,13 +74,53 @@ fn run_stream(config: cli::Config) -> std::io::Result<()> {
 		}
 }
 
+
+fn run_sync(config: Config) -> std::io::Result<()> {
+	let mut client = mpd::connect(&config.url)?;
+	let unsynced_lyrics = fs::read_to_string(&config.unsynced_filename.unwrap())?;
+	let current_song = client.get_command("currentsong")?;
+	
+	let title = current_song.get("Title").unwrap();
+	let artist = current_song.get("Artist").unwrap();
+	
+	println!("Playing {} - {} -- Press ENTER to start", artist, title);
+
+	let mut buf = String::new();
+	stdin().read_line(&mut buf)?;
+	
+	println!("Press ENTER when the line displayed on screen begins");
+	client.run_command("stop")?;  // TODO -- check for OK response
+	client.run_command("play")?;
+	
+	let mut data = Vec::<Lyric>::new();
+
+	let start = SystemTime::now();
+	for line in unsynced_lyrics.lines() {
+		if line == "" && !config.blank_lines {continue}
+		println!("{}", line);
+		stdin().read_line(&mut buf)?;
+		data.push(Lyric {lyric: line.to_owned(), min_secs: SystemTime::now().duration_since(start).unwrap().as_secs_f64()});
+		dbg!(lyric_parser::seconds_to_timestr(&data.last().unwrap().min_secs));
+	}
+	
+	let lyrics = lyric_parser::load_from_data(data);
+	let mut filename = PathBuf::from(config.lyric_dir.to_string());
+	filename.push(format!("{} - {}.lrc", artist, title));
+	
+	let mut file = File::create(filename)?;
+	write!(&mut file, "{}", lyrics.to_string())?;
+	
+	
+	Ok(())
+}
 fn main() -> std::io::Result<()> {
 	let config = cli::parse_args();
 	
 	match config.mode {
-		cli::Mode::ShowHelp => cli::print_help(),
-		cli::Mode::Stream => run_stream(config)?,
-		cli::Mode::Instant => run_instant(config)?,
+		Mode::ShowHelp => cli::print_help(),
+		Mode::Stream => run_stream(config)?,
+		Mode::Instant => run_instant(config)?,
+		Mode::Sync => run_sync(config)?,
 	};
 		
 	Ok(())

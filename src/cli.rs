@@ -5,6 +5,7 @@ pub enum Mode {
     Instant,
 		Stream,
 		ShowHelp,
+		Sync,
 }
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -12,6 +13,7 @@ pub struct Config {
 	pub url: Cow<'static, str>,
 	pub lyric_dir: Cow<'static, str>,
 	pub blank_lines: bool,
+	pub unsynced_filename: Option<String>,
 }
 
 const DEFAULT_CONFIG: Config = Config {
@@ -19,6 +21,7 @@ const DEFAULT_CONFIG: Config = Config {
 	url: Cow::Borrowed("localhost:6600"),
 	lyric_dir: Cow::Borrowed("$XDG_DATA_HOME/lyrics"),
 	blank_lines: false,
+	unsynced_filename: None,
 };
 
 pub fn print_help() {
@@ -48,6 +51,13 @@ pub fn parse_args() -> Config {
 		match arg.as_str() {
 			"--now" | "-n" => config.mode = Mode::Instant,
 			"--stream" | "-f" => config.mode = Mode::Stream,
+			"--sync" | "-s" => match args.next() {
+				Some(f) => {
+					config.mode = Mode::Sync;
+					config.unsynced_filename = Some(f);
+				},
+				None => invalid = true,
+			},
 			"--help" | "-h" | "-?" => config.mode = Mode::ShowHelp,
 			"--url" | "-u" => match args.next() {
 				Some(u) => config.url = Cow::Owned(u),

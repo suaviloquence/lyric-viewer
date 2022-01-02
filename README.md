@@ -14,11 +14,16 @@ displays the current synced lyric of mpd
 #### Modes
 - `--now` | `-n` => Show lyrics for this point in time and exit.
 - `--stream` | `-f` => Show lyrics in a stream.
+- `--sync <file>` | `-s <file>` => Sync unsynced lyrics in `<file>` to current song in MPD.
 - `--help` | `-h` | `-?` => Print a help message.
 
 #### Configuration
 - `--url <url>` | `-u <url>` => Set the `url` for MPD (default: localhost:6600)
 - `--dir <dir>` | `-d <dir>` => Set the directory `dir` to look for lyric files (default: $XDG_DATA_HOME/lyrics)
 - `--blanklines` => Print blank lines (off by default)
+
+## Status
+
+Everything works (except for bugs).  Could use better error handling`?`
 
 *[lyric no longer looks like a real word](https://en.wikipedia.org/wiki/Semantic_satiation)*
