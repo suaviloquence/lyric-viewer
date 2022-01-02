@@ -67,7 +67,7 @@ pub fn load(contents: String, blank_lines: bool) -> Lyrics {
 				None => continue,
 				Some(s) => &s[1..],  // strip leading '['
 			};
-			let lyric = split.next().unwrap_or("").to_owned();  // TODO - reevaluate default lyric
+			let lyric = split.collect::<Vec<_>>().join("]");  // add remaining ']'s back in
 			if !blank_lines && lyric == "" {continue}
 			let min_secs = match timestr_to_seconds(timestr) {
 				Ok(s) => s,
