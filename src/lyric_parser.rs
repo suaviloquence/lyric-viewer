@@ -1,6 +1,5 @@
 use std::{fmt::Write, fs, num::ParseFloatError};
 
-
 #[derive(Debug)]
 pub struct Lyric {
 	pub min_secs: f64,
@@ -18,18 +17,24 @@ impl Lyrics {
 			if time >= lyric.min_secs {
 				result = Some(&lyric.lyric)
 			} else {
-				break
+				break;
 			}
 		}
 		result
 	}
-	
+
 	pub fn to_string(&self) -> String {
 		let mut result = String::new();
 		for lyric in &self.data {
-			writeln!(&mut result, "[{}]{}", seconds_to_timestr(&lyric.min_secs), &lyric.lyric).unwrap();
+			write!(
+				&mut result,
+				"[{}]{}",
+				seconds_to_timestr(&lyric.min_secs),
+				&lyric.lyric
+			)
+			.unwrap(); // should never have format error
 		}
-		
+
 		result
 	}
 }
@@ -44,7 +49,12 @@ impl IntoIterator for Lyrics {
 
 // doesn't work for things over 99 hours... but why would you do that?
 pub fn seconds_to_timestr(seconds: &f64) -> String {
-	format!("{:02.0}:{:02.0}:{:06.3}", (seconds / 3600.0).floor(), ((seconds % 3600.0) / 60.0).floor(), (seconds % 60.0))
+	format!(
+		"{:02.0}:{:02.0}:{:06.3}",
+		(seconds / 3600.0).floor(),
+		((seconds % 3600.0) / 60.0).floor(),
+		(seconds % 60.0)
+	)
 }
 
 // won't work for songs with units longer than hours... but that shouldn't matter
@@ -60,23 +70,25 @@ fn timestr_to_seconds(timestr: &str) -> Result<f64, ParseFloatError> {
 
 pub fn load(contents: String, blank_lines: bool) -> Lyrics {
 	let mut data = Vec::new();
-	
+
 	for line in contents.lines() {
-			let mut split = line.split("]");
-			let timestr = match split.next() {
-				None => continue,
-				Some(s) => &s[1..],  // strip leading '['
-			};
-			let lyric = split.collect::<Vec<_>>().join("]");  // add remaining ']'s back in
-			if !blank_lines && lyric == "" {continue}
-			let min_secs = match timestr_to_seconds(timestr) {
-				Ok(s) => s,
-				Err(_) => continue, // ignore malformed data
-			};
-			data.push(Lyric {min_secs, lyric});
+		let mut split = line.split("]");
+		let timestr = match split.next() {
+			None => continue,
+			Some(s) => &s[1..], // strip leading '['
+		};
+		let lyric = split.collect::<Vec<_>>().join("]"); // add remaining ']'s back in
+		if !blank_lines && lyric == "" {
+			continue;
+		}
+		let min_secs = match timestr_to_seconds(timestr) {
+			Ok(s) => s,
+			Err(_) => continue, // ignore malformed data
+		};
+		data.push(Lyric { min_secs, lyric });
 	}
 
-	Lyrics {data}
+	Lyrics { data }
 }
 
 pub fn load_from_file(filename: &str, blank_lines: bool) -> std::io::Result<Lyrics> {
@@ -84,5 +96,5 @@ pub fn load_from_file(filename: &str, blank_lines: bool) -> std::io::Result<Lyri
 }
 
 pub fn load_from_data(data: Vec<Lyric>) -> Lyrics {
-	Lyrics {data}
+	Lyrics { data }
 }
