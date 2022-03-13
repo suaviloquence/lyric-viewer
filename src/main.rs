@@ -17,6 +17,7 @@ use crate::lyric_parser::Lyric;
 mod cli;
 mod lyric_parser;
 mod mpd;
+mod test_lib;
 
 fn run_instant(config: Config) {
 	let mut client = mpd::connect(&config.url).expect("Error connecting to MPD.");
@@ -25,10 +26,18 @@ fn run_instant(config: Config) {
 		.get_command("status")
 		.expect("Error communicating with MPD (status command).");
 
-	if ret.get("state").unwrap() == "stop" {
+	if ret
+		.get("state")
+		.expect("Invalid response from MPD (no state)")
+		== "stop"
+	{
 		panic!("MPD is not playing.");
 	}
-	let elapsed_time = ret.get("elapsed").unwrap().parse::<f64>().unwrap();
+	let elapsed_time = ret
+		.get("elapsed")
+		.expect("Invalid response from MPD (doesn't contain elapsed).")
+		.parse::<f64>()
+		.expect("Invalid response from MPD (elapsed is not a number).");
 
 	let song_data = client
 		.get_command("currentsong")

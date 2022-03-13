@@ -10,6 +10,9 @@ pub struct MPDClient {
 }
 
 impl MPDClient {
+	pub fn new(stream: TcpStream, reader: BufReader<TcpStream>) -> Self {
+		Self { stream, reader }
+	}
 	pub fn run_command(&mut self, command: &str) -> std::io::Result<()> {
 		write!(&mut self.stream, "{}\n", command)?;
 		self.stream.flush()
