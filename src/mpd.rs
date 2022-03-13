@@ -1,21 +1,21 @@
 use std::{
 	collections::HashMap,
-	io::{BufRead, BufReader, Error, ErrorKind, Write},
+	io::{self, BufRead, BufReader, Error, ErrorKind, Write},
 	net::TcpStream,
 };
 
-pub struct MPDClient {
-	stream: TcpStream,
-	reader: BufReader<TcpStream>,
+pub struct MPDClient<R: BufRead, W: Write> {
+	reader: R,
+	writer: W,
 }
 
-impl MPDClient {
-	pub fn new(stream: TcpStream, reader: BufReader<TcpStream>) -> Self {
-		Self { stream, reader }
+impl<R: BufRead, W: Write> MPDClient<R, W> {
+	pub fn new(reader: R, writer: W) -> Self {
+		Self { reader, writer }
 	}
 	pub fn run_command(&mut self, command: &str) -> std::io::Result<()> {
-		write!(&mut self.stream, "{}\n", command)?;
-		self.stream.flush()
+		write!(&mut self.writer, "{}\n", command)?;
+		self.writer.flush()
 	}
 
 	pub fn get_command(&mut self, command: &str) -> std::io::Result<HashMap<String, String>> {
@@ -47,18 +47,23 @@ impl MPDClient {
 	}
 }
 
-pub fn connect(url: &str) -> std::io::Result<MPDClient> {
-	let stream = TcpStream::connect(url)?;
-	let reader = BufReader::new(stream.try_clone()?);
-	let mut client = MPDClient { stream, reader };
+impl MPDClient<BufReader<TcpStream>, TcpStream> {
+	pub fn connect(url: &str) -> io::Result<Self> {
+		let stream = TcpStream::connect(url)?;
+		let reader = BufReader::new(stream.try_clone()?);
+		let mut client = MPDClient {
+			writer: stream,
+			reader,
+		};
 
-	let mut greeting = String::new();
-	if client.reader.read_line(&mut greeting)? == 0 || &greeting[..2] != "OK" {
-		return Err(Error::new(
-			ErrorKind::InvalidData,
-			"Connection to MPD not OK.",
-		));
+		let mut greeting = String::new();
+		if client.reader.read_line(&mut greeting)? == 0 || &greeting[..2] != "OK" {
+			return Err(Error::new(
+				ErrorKind::InvalidData,
+				"Connection to MPD not OK.",
+			));
+		}
+
+		Ok(client)
 	}
-
-	Ok(client)
 }

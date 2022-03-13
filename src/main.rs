@@ -12,7 +12,7 @@ use std::{
 
 use cli::{Config, Mode};
 
-use crate::lyric_parser::Lyric;
+use crate::{lyric_parser::Lyric, mpd::MPDClient};
 
 mod cli;
 mod lyric_parser;
@@ -20,7 +20,7 @@ mod mpd;
 mod test_lib;
 
 fn run_instant(config: Config) {
-	let mut client = mpd::connect(&config.url).expect("Error connecting to MPD.");
+	let mut client = MPDClient::connect(&config.url).expect("Error connecting to MPD.");
 
 	let ret = client
 		.get_command("status")
@@ -56,7 +56,7 @@ fn run_instant(config: Config) {
 }
 
 fn run_stream(config: Config) {
-	let mut client = mpd::connect(&config.url).expect("Error connecting to MPD.");
+	let mut client = MPDClient::connect(&config.url).expect("Error connecting to MPD.");
 
 	loop {
 		let stop = Arc::new(AtomicBool::new(false));
@@ -118,7 +118,7 @@ fn run_stream(config: Config) {
 }
 
 fn run_sync(config: Config) {
-	let mut client = mpd::connect(&config.url).expect("Error connecting to MPD.");
+	let mut client = MPDClient::connect(&config.url).expect("Error connecting to MPD.");
 	let unsynced_lyrics = fs::read_to_string(&config.unsynced_filename.unwrap())
 		.expect("Error reading unsynced lyric file.");
 	let current_song = client
