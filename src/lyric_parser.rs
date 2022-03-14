@@ -1,19 +1,32 @@
-use std::{fmt::Write, fs, num::ParseFloatError};
+use std::{
+	fmt::{self, Write},
+	fs,
+	num::ParseFloatError,
+};
 
 #[derive(Debug)]
 pub struct Lyric {
 	pub min_secs: f64,
 	pub lyric: String,
 }
-#[derive(Debug)]
-pub struct Lyrics {
-	data: Vec<Lyric>,
+impl fmt::Display for Lyric {
+	fn fmt(&self, mut f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(
+			&mut f,
+			"[{}]{}",
+			seconds_to_timestr(&self.min_secs),
+			&self.lyric
+		)
+	}
 }
+
+#[derive(Debug)]
+pub struct Lyrics(Vec<Lyric>);
 
 impl Lyrics {
 	pub fn get_lyric_for_time(&self, time: f64) -> Option<&str> {
 		let mut result: Option<&str> = None;
-		for lyric in &self.data {
+		for lyric in &self.0 {
 			if time >= lyric.min_secs {
 				result = Some(&lyric.lyric)
 			} else {
@@ -22,20 +35,15 @@ impl Lyrics {
 		}
 		result
 	}
+}
 
-	pub fn to_string(&self) -> String {
-		let mut result = String::new();
-		for lyric in &self.data {
-			write!(
-				&mut result,
-				"[{}]{}",
-				seconds_to_timestr(&lyric.min_secs),
-				&lyric.lyric
-			)
-			.unwrap(); // should never have format error
+impl fmt::Display for Lyrics {
+	fn fmt(&self, mut f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		for lyric in &self.0 {
+			write!(&mut f, "{}\n", lyric)?;
 		}
 
-		result
+		Ok(())
 	}
 }
 
@@ -43,7 +51,7 @@ impl IntoIterator for Lyrics {
 	type Item = Lyric;
 	type IntoIter = std::vec::IntoIter<Self::Item>;
 	fn into_iter(self) -> Self::IntoIter {
-		self.data.into_iter()
+		self.0.into_iter()
 	}
 }
 
@@ -88,7 +96,7 @@ pub fn load(contents: String, blank_lines: bool) -> Lyrics {
 		data.push(Lyric { min_secs, lyric });
 	}
 
-	Lyrics { data }
+	Lyrics(data)
 }
 
 pub fn load_from_file(filename: &str, blank_lines: bool) -> std::io::Result<Lyrics> {
@@ -96,5 +104,5 @@ pub fn load_from_file(filename: &str, blank_lines: bool) -> std::io::Result<Lyri
 }
 
 pub fn load_from_data(data: Vec<Lyric>) -> Lyrics {
-	Lyrics { data }
+	Lyrics(data)
 }
