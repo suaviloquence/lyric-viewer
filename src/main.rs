@@ -3,10 +3,6 @@ use std::{
 	fs::{self, File},
 	io::{self, Write},
 	path::PathBuf,
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		mpsc, Arc,
-	},
 	thread,
 	time::{Duration, Instant},
 };
@@ -21,6 +17,7 @@ use crate::{
 mod cli;
 mod lyric_parser;
 mod mpd;
+mod stream;
 mod test_lib;
 
 fn run_instant(config: Config) -> mpd::Result<()> {
@@ -44,58 +41,6 @@ fn run_instant(config: Config) -> mpd::Result<()> {
 	};
 	print!("{}", lyrics.get_lyric_for_time(elapsed_time).unwrap_or(""));
 	Ok(())
-}
-
-fn run_stream(config: Config) -> mpd::Result<()> {
-	let mut client = MPDClient::connect(&config.url)?;
-
-	loop {
-		let stop = Arc::new(AtomicBool::new(false));
-		thread::spawn({
-			let stop_thread = stop.clone();
-			let current_status = client.status()?;
-			let song_data = client.current_song()?;
-			let lyric_dir = config.lyric_dir.clone();
-
-			move || {
-				if current_status.state != State::PLAY {
-					return;
-				}
-
-				let filename = format!(
-					"{}/{} - {}.lrc",
-					lyric_dir, song_data.artist, song_data.title
-				);
-
-				let mut secs = current_status.elapsed;
-
-				let lyrics = match lyric_parser::load_from_file(&filename, config.blank_lines) {
-					Ok(l) => l,
-					Err(_) => return,
-				};
-
-				let mut iter = lyrics.into_iter();
-				while let Some(next) = iter.next() {
-					if secs > next.min_secs {
-						continue;
-					}
-
-					while next.min_secs - secs > 0.001 {
-						if stop_thread.load(Ordering::SeqCst) {
-							return;
-						}
-						let dur = Duration::from_millis(200)
-							.min(Duration::from_secs_f64(next.min_secs - secs));
-						thread::sleep(dur);
-						secs += dur.as_secs_f64();
-					}
-					println!("{}", next.lyric);
-				}
-			}
-		});
-		client.idle_player()?;
-		stop.store(true, Ordering::SeqCst);
-	}
 }
 
 fn run_sync(config: Config) -> mpd::Result<()> {
@@ -191,7 +136,7 @@ fn main() -> mpd::Result<()> {
 
 	match config.mode {
 		Mode::ShowHelp => Ok(cli::print_help()),
-		Mode::Stream => run_stream(config),
+		Mode::Stream => stream::run(config),
 		Mode::Instant => run_instant(config),
 		Mode::Sync => run_sync(config),
 	}
