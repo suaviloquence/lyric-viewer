@@ -66,18 +66,14 @@ impl Iterator for Lyrics {
 
 impl Lyrics {
 	pub fn get_lyric_for_time(&mut self, time: f64) -> Option<Lyric> {
-		while let Some(lyric) = self.next() {
-			if time >= lyric.min_secs {
-				if let Some(next) = self.data.peek() {
-					if next.min_secs > time {
-						return Some(lyric);
-					}
-				}
-			} else {
+		let mut previous = None;
+		while let Some(next) = self.data.peek() {
+			if next.min_secs > time {
 				break;
 			}
+			previous = self.next();
 		}
-		None
+		previous
 	}
 
 	pub fn write(self, mut stream: &mut impl io::Write) -> io::Result<()> {
