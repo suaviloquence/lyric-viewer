@@ -1,8 +1,4 @@
-use std::{
-	fmt::{self, Write},
-	fs,
-	num::ParseFloatError,
-};
+use std::{fmt, fs, io, iter::Peekable, num::ParseFloatError};
 
 #[derive(Debug)]
 pub struct Lyric {
@@ -21,37 +17,75 @@ impl fmt::Display for Lyric {
 }
 
 #[derive(Debug)]
-pub struct Lyrics(Vec<Lyric>);
+pub struct Lyrics {
+	data: Peekable<std::vec::IntoIter<Lyric>>,
+	previous: Option<Lyric>,
+	repeat_count: usize,
+}
+
+impl From<Vec<Lyric>> for Lyrics {
+	fn from(data: Vec<Lyric>) -> Self {
+		Self {
+			data: data.into_iter().peekable(),
+			previous: None,
+			repeat_count: 1,
+		}
+	}
+}
+
+impl Iterator for Lyrics {
+	type Item = Lyric;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		match self.data.next() {
+			Some(Lyric { min_secs, lyric }) => {
+				if self.previous.as_ref().map(|l| &l.lyric) == Some(&lyric) {
+					self.repeat_count += 1
+				} else {
+					self.repeat_count = 1
+				}
+
+				self.previous = Some(Lyric {
+					min_secs,
+					lyric: lyric.clone(),
+				});
+
+				Some(Lyric {
+					min_secs,
+					lyric: if self.repeat_count == 1 {
+						lyric
+					} else {
+						format!("{} ({})", lyric, self.repeat_count)
+					},
+				})
+			}
+			None => None,
+		}
+	}
+}
 
 impl Lyrics {
-	pub fn get_lyric_for_time(&self, time: f64) -> Option<&str> {
-		let mut result: Option<&str> = None;
-		for lyric in &self.0 {
+	pub fn get_lyric_for_time(&mut self, time: f64) -> Option<Lyric> {
+		while let Some(lyric) = self.next() {
 			if time >= lyric.min_secs {
-				result = Some(&lyric.lyric)
+				if let Some(next) = self.data.peek() {
+					if next.min_secs > time {
+						return Some(lyric);
+					}
+				}
 			} else {
 				break;
 			}
 		}
-		result
+		None
 	}
-}
 
-impl fmt::Display for Lyrics {
-	fn fmt(&self, mut f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		for lyric in &self.0 {
-			write!(&mut f, "{}\n", lyric)?;
+	pub fn write(self, mut stream: &mut impl io::Write) -> io::Result<()> {
+		for lyric in self.data {
+			write!(&mut stream, "{}\n", lyric)?;
 		}
 
 		Ok(())
-	}
-}
-
-impl IntoIterator for Lyrics {
-	type Item = Lyric;
-	type IntoIter = std::vec::IntoIter<Self::Item>;
-	fn into_iter(self) -> Self::IntoIter {
-		self.0.into_iter()
 	}
 }
 
@@ -77,26 +111,31 @@ fn timestr_to_seconds(timestr: &str) -> Result<f64, ParseFloatError> {
 }
 
 pub fn load(contents: String, blank_lines: bool) -> Lyrics {
-	let mut data = Vec::new();
+	let mut data = Vec::with_capacity(contents.lines().count());
 
 	for line in contents.lines() {
-		let mut split = line.split("]");
-		let timestr = match split.next() {
+		let index = match line.find(']') {
+			Some(i) => i,
 			None => continue,
-			Some(s) => &s[1..], // strip leading '['
 		};
-		let lyric = split.collect::<Vec<_>>().join("]"); // add remaining ']'s back in
+
+		let split = line.split_at(index);
+		let timestr = &split.0[1..]; // strip leading '['
+		let lyric = split.1[1..].to_owned(); // strip the ']'
+
 		if !blank_lines && lyric == "" {
 			continue;
 		}
+
 		let min_secs = match timestr_to_seconds(timestr) {
 			Ok(s) => s,
 			Err(_) => continue, // ignore malformed data
 		};
+
 		data.push(Lyric { min_secs, lyric });
 	}
 
-	Lyrics(data)
+	Lyrics::from(data)
 }
 
 pub fn load_from_file(filename: &str, blank_lines: bool) -> std::io::Result<Lyrics> {
@@ -104,5 +143,5 @@ pub fn load_from_file(filename: &str, blank_lines: bool) -> std::io::Result<Lyri
 }
 
 pub fn load_from_data(data: Vec<Lyric>) -> Lyrics {
-	Lyrics(data)
+	Lyrics::from(data)
 }

@@ -60,13 +60,15 @@ impl<R: BufRead, W: Write> MPDClient<R, W> {
 	pub fn get_command(&mut self, command: &str) -> Result<HashMap<String, String>> {
 		self.run_command(command)?;
 		let mut map = HashMap::new();
+
+		const DELIMITER: &'static str = ": ";
 		for line in self.read_until_ok()? {
 			let index = line
-				.find(": ")
-				.expect("Invalid result from MPD (not key-value format).");
-			let key = &line[..index];
-			let value = &line[index + 2..]; // 2: length of delimeter
-			map.insert(key.to_owned(), value.to_owned());
+				.find(DELIMITER)
+				.expect("Invalid result from MPD (not key: value format).");
+			let (key, value) = line.split_at(index);
+			// delimiter is two characters long
+			map.insert(key.to_owned(), value[DELIMITER.len()..].to_owned());
 		}
 		Ok(map)
 	}

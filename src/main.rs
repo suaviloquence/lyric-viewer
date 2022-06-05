@@ -1,7 +1,7 @@
 use std::{
 	collections::VecDeque,
 	fs::{self, File},
-	io::{self, Write},
+	io,
 	path::PathBuf,
 	thread,
 	time::{Duration, Instant},
@@ -32,20 +32,30 @@ fn run_instant(config: Config) -> mpd::Result<()> {
 
 	let CurrentSong { artist, title } = client.current_song()?;
 
-	let lyrics = match lyric_parser::load_from_file(
+	let mut lyrics = match lyric_parser::load_from_file(
 		&format!("{}/{} - {}.lrc", config.lyric_dir, artist, title),
 		config.blank_lines,
 	) {
 		Ok(c) => c,
 		Err(_) => panic!("Error loading lyrics from file."),
 	};
-	print!("{}", lyrics.get_lyric_for_time(elapsed_time).unwrap_or(""));
+
+	match lyrics.get_lyric_for_time(elapsed_time) {
+		Some(lyric) => println!("{}", lyric.lyric),
+		None => (),
+	};
+
 	Ok(())
 }
 
 fn run_sync(config: Config) -> mpd::Result<()> {
+	let unsynced_filename = match config.mode {
+		Mode::Sync { unsynced_filename } => unsynced_filename,
+		_ => unreachable!(),
+	};
+
 	let mut client = MPDClient::connect(&config.url)?;
-	let unsynced_lyrics = fs::read_to_string(&config.unsynced_filename.unwrap())?;
+	let unsynced_lyrics = fs::read_to_string(unsynced_filename)?;
 	let current_song = client.current_song()?;
 
 	let title = current_song.title;
@@ -113,7 +123,6 @@ fn run_sync(config: Config) -> mpd::Result<()> {
 			lines.push_front(lyric);
 			min_secs += start.elapsed().as_secs_f64();
 			start = Instant::now();
-			min_secs = dbg!(0f64.max(min_secs - 5.0));
 			client.seek_cur(min_secs)?;
 			continue;
 		}
@@ -129,15 +138,15 @@ fn run_sync(config: Config) -> mpd::Result<()> {
 	filename.push(format!("{} - {}.lrc", artist, title));
 
 	let mut file = File::create(filename)?;
-	write!(&mut file, "{}", lyrics).into_res()
+	lyrics.write(&mut file).into_res()
 }
 fn main() -> mpd::Result<()> {
 	let config = cli::parse_args();
 
 	match config.mode {
-		Mode::ShowHelp => Ok(cli::print_help()),
+		Mode::ShowHelp { program_name } => Ok(cli::print_help(program_name)),
 		Mode::Stream => stream::run(config),
 		Mode::Instant => run_instant(config),
-		Mode::Sync => run_sync(config),
+		Mode::Sync { .. } => run_sync(config),
 	}
 }
